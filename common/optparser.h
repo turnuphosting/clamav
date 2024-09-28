@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *  Copyright (C) 2013-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  *  Copyright (C) 2008-2013 Sourcefire, Inc.
  *
  *  Author: Tomasz Kojm <tkojm@clamav.net>
@@ -33,8 +33,8 @@
 #define OPT_CLAMCONF        64
 #define OPT_CLAMDTOP        128
 #define OPT_CLAMBC          256
-#define OPT_CLAMONACC    512
-#define OPT_DEPRECATED	1024
+#define OPT_CLAMONACC       512
+#define OPT_DEPRECATED	    1024
 
 #define CLOPT_TYPE_STRING   1    /* quoted/regular string */
 #define CLOPT_TYPE_NUMBER   2    /* raw number */

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *  Copyright (C) 2013-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  *  Copyright (C) 2010-2013 Sourcefire, Inc.
  *
  *  Authors: aCaB <acab@clamav.net>, Török Edvin <edwin@clamav.net>
@@ -117,7 +117,7 @@ static inline void cacheset_destroy(struct cache_set *cs, mpool_t *mempool)
     cs->data = NULL;
 }
 
-/* The left/right cooser for the splay tree */
+/* The left/right chooser for the splay tree */
 static inline int cmp(int64_t *a, ssize_t sa, int64_t *b, ssize_t sb)
 {
     if (a[1] < b[1]) return -1;
@@ -749,11 +749,6 @@ cl_error_t clean_cache_check(unsigned char *md5, size_t size, cli_ctx *ctx)
         // Don't cache when using the "collect metadata" feature.
         // We don't cache the JSON, so we can't reproduce it when the cache is positive.
         cli_dbgmsg("clean_cache_check: collect metadata feature enabled, skipping cache\n");
-        return CL_VIRUS;
-    }
-
-    if (ctx->engine->engine_options & ENGINE_OPTIONS_DISABLE_CACHE) {
-        cli_dbgmsg("clean_cache_check: Caching disabled. Returning CL_VIRUS.\n");
         return CL_VIRUS;
     }
 

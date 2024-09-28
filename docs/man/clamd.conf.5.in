@@ -245,10 +245,16 @@ Enable non-blocking (multi-threaded/concurrent) database reloads. This feature w
 Default: yes
 .TP
 \fBVirusEvent COMMAND\fR
-Execute a command when a virus is found. In the command string %v will be
-replaced with the virus name and %f will be replaced with the file name.
-Additionally, two environment variables will be defined: $CLAM_VIRUSEVENT_FILENAME
-and $CLAM_VIRUSEVENT_VIRUSNAME.
+Execute a command when virus is found.
+Use the following environment variables to identify the file and virus names:
+- $CLAM_VIRUSEVENT_FILENAME
+- $CLAM_VIRUSEVENT_VIRUSNAME
+In the command string, '%v' will also be replaced with the virus name.
+Note: The '%f' filename format character has been disabled and will no longer
+be replaced with the file name, due to command injection security concerns.
+Use the 'CLAM_VIRUSEVENT_FILENAME' environment variable instead.
+For the same reason, you should NOT use the environment variables in the
+command directly, but should use it carefully from your executed script.
 \fR
 .br
 Default: disabled
@@ -479,10 +485,31 @@ If you turn off this option, the original files will still be scanned, but witho
 .br
 Default: yes
 .TP
+\fBScanOneNote BOOL\fR
+This option enables scanning OneNote files.
+.br
+If you turn off this option, the original files will still be scanned, but without additional processing.
+.br
+Default: yes
+.TP
 \fBScanArchive BOOL\fR
 Scan within archives and compressed files.
 .br
 If you turn off this option, the original files will still be scanned, but without unpacking and additional processing.
+.br
+Default: yes
+.TP
+\fBScanImage BOOL\fR
+This option enables scanning of image (graphics).
+.br
+If you turn off this option, the original files will still be scanned, but without unpacking and additional processing.
+.br
+Default: yes
+.TP
+\fBScanImageFuzzyHash BOOL\fR
+This option enables detection by calculating a fuzzy hash of image (graphics) files. Signatures using image fuzzy hashes typically match files and documents by identifying images embedded or attached to those files.
+.br
+If you turn off this option, then some files may no longer be detected.
 .br
 Default: yes
 .TP
@@ -745,7 +772,7 @@ Max number of scanning threads to allocate to the OnAccess thread pool at startu
 Default: 5
 .TP
 \fBOnAccessCurlTimeout NUMBER\fR
-Max amount of time (in milliseconds) that the OnAccess client should spend for every connect, send, and recieve attempt when communicating with clamd via curl.
+Max amount of time (in milliseconds) that the OnAccess client should spend for every connect, send, and receive attempt when communicating with clamd via curl.
 .br
 Default: 5000 (5 seconds)
 .TP

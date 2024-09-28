@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *  Copyright (C) 2013-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  *  Copyright (C) 2007-2013 Sourcefire, Inc.
  *
  *  Authors: Tomasz Kojm, Trog
@@ -58,9 +58,7 @@
 #include <pthread.h>
 #endif
 
-#ifdef HAVE_LIBXML2
 #include <libxml/parser.h>
-#endif
 
 #ifndef _WIN32
 #include <dlfcn.h>
@@ -94,106 +92,27 @@ static int is_rar_inited = 0;
 #define PASTE2(a, b) a #b
 #define PASTE(a, b) PASTE2(a, b)
 
+#ifdef _WIN32
+
 static void *load_module(const char *name, const char *featurename)
 {
-#ifdef _WIN32
-    static const char *suffixes[] = {LT_MODULE_EXT};
-#else
-    static const char *suffixes[] = {
-        LT_MODULE_EXT "." LIBCLAMAV_FULLVER,
-        PASTE(LT_MODULE_EXT ".", LIBCLAMAV_MAJORVER),
-        LT_MODULE_EXT,
-        "." LT_LIBEXT};
-#endif
-
-    const char *searchpath;
-    char modulename[128];
-    size_t i;
-#ifdef _WIN32
     HMODULE rhandle = NULL;
-#else
-    void *rhandle;
-#endif
+    char modulename[512];
+    size_t i;
 
-#ifdef _WIN32
     /*
-     * First try a standard LoadLibraryA() without specifying a full path.
+     * For Windows, just try a standard LoadLibraryA() with each of the different possible suffixes.
      * For more information on the DLL search order, see:
-     *  https://docs.microsoft.com/en-us/windows/desktop/Dlls/dynamic-link-library-search-order
+     *  https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order
      */
     cli_dbgmsg("searching for %s\n", featurename);
-#else
-    /*
-     * First search using the provided SEARCH_LIBDIR (e.g. "<prefix>/lib")
-     * Known issue: If an older clamav version is already installed, the clamav
-     * unit tests using this function will load the older library version from
-     * the install path first.
-     */
-    searchpath = SEARCH_LIBDIR;
-    cli_dbgmsg("searching for %s, user-searchpath: %s\n", featurename, searchpath);
-#endif
 
-    for (i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++) {
-#ifdef _WIN32
-        snprintf(modulename, sizeof(modulename), "%s%s", name, suffixes[i]);
-        rhandle = LoadLibraryA(modulename);
-#else  // !_WIN32
-        snprintf(modulename, sizeof(modulename), "%s" PATHSEP "%s%s", searchpath, name, suffixes[i]);
-        rhandle = dlopen(modulename, RTLD_NOW);
-#endif // !_WIN32
-        if (rhandle) {
-            break;
-        }
+    snprintf(modulename, sizeof(modulename), "%s%s", name, LT_MODULE_EXT);
 
-        cli_dbgmsg("searching for %s: %s not found\n", featurename, modulename);
-    }
-
+    rhandle = LoadLibraryA(modulename);
     if (NULL == rhandle) {
-        char *ld_library_path = NULL;
-        /*
-         * library not found.
-         * Try again using LD_LIBRARY_PATH environment variable for the path.
-         */
-        ld_library_path = getenv("LD_LIBRARY_PATH");
-        if (NULL != ld_library_path) {
-#define MAX_LIBRARY_PATHS 10
-            size_t token_index;
-            size_t tokens_count;
-            const char *tokens[MAX_LIBRARY_PATHS];
+        char *err = NULL;
 
-            char *tokenized_library_path = NULL;
-
-            tokenized_library_path = strdup(ld_library_path);
-            tokens_count           = cli_strtokenize(tokenized_library_path, ':', MAX_LIBRARY_PATHS, tokens);
-
-            for (token_index = 0; token_index < tokens_count; token_index++) {
-                cli_dbgmsg("searching for %s, LD_LIBRARY_PATH: %s\n", featurename, tokens[token_index]);
-
-                for (i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++) {
-                    snprintf(modulename, sizeof(modulename), "%s" PATHSEP "%s%s", tokens[token_index], name, suffixes[i]);
-#ifdef _WIN32
-                    rhandle = LoadLibraryA(modulename);
-#else  // !_WIN32
-                    rhandle = dlopen(modulename, RTLD_NOW);
-#endif // !_WIN32
-                    if (rhandle) {
-                        break;
-                    }
-
-                    cli_dbgmsg("searching for %s: %s not found\n", featurename, modulename);
-                }
-
-                if (rhandle) {
-                    break;
-                }
-            }
-            free(tokenized_library_path);
-        }
-    }
-
-    if (NULL == rhandle) {
-#ifdef _WIN32
-        char *err     = NULL;
         DWORD lasterr = GetLastError();
         if (0 < lasterr) {
             FormatMessageA(
@@ -205,35 +124,111 @@ static void *load_module(const char *name, const char *featurename)
                 0,
                 NULL);
         }
-#else  // !_WIN32
-        const char *err = dlerror();
-#endif // !_WIN32
 
-#ifdef WARN_DLOPEN_FAIL
         if (NULL == err) {
-            cli_warnmsg("Cannot dlopen %s: Unknown error - %s support unavailable\n", name, featurename);
+            cli_dbgmsg("Cannot LoadLibraryA %s: Unknown error - %s support unavailable\n", name, featurename);
         } else {
-            cli_warnmsg("Cannot dlopen %s: %s - %s support unavailable\n", name, err, featurename);
-        }
-#else
-        if (NULL == err) {
-            cli_dbgmsg("Cannot dlopen %s: Unknown error - %s support unavailable\n", name, featurename);
-        } else {
-            cli_dbgmsg("Cannot dlopen %s: %s - %s support unavailable\n", name, err, featurename);
-        }
-#endif
-
-#ifdef _WIN32
-        if (NULL != err) {
+            cli_dbgmsg("Cannot LoadLibraryA %s: %s - %s support unavailable\n", name, err, featurename);
             LocalFree(err);
         }
-#endif
-        return rhandle;
+
+        goto done;
     }
 
     cli_dbgmsg("%s support loaded from %s\n", featurename, modulename);
+
+done:
+
     return (void *)rhandle;
 }
+
+#else
+
+static void *load_module(const char *name, const char *featurename)
+{
+    static const char *suffixes[] = {
+        LT_MODULE_EXT "." LIBCLAMAV_FULLVER,
+        PASTE(LT_MODULE_EXT ".", LIBCLAMAV_MAJORVER),
+        LT_MODULE_EXT,
+        "." LT_LIBEXT};
+    void *rhandle                = NULL;
+    char *tokenized_library_path = NULL;
+    char *ld_library_path        = NULL;
+    const char *err;
+
+    char modulename[512];
+    size_t i;
+
+    /*
+     * First try using LD_LIBRARY_PATH environment variable for the path.
+     * We do this first because LD_LIBRARY_PATH is intended as an option to override the installed library path.
+     *
+     * We don't do this for Windows because Windows doesn't have an equivalent to LD_LIBRARY_PATH
+     * and because LoadLibraryA() will search the executable's folder, which works for the unit tests.
+     */
+    ld_library_path = getenv("LD_LIBRARY_PATH");
+    if (NULL != ld_library_path && strlen(ld_library_path) > 0) {
+#define MAX_LIBRARY_PATHS 10
+        size_t token_index;
+        size_t tokens_count;
+        const char *tokens[MAX_LIBRARY_PATHS];
+
+        /*
+         * LD_LIBRARY_PATH may be a colon-separated list of directories.
+         * Tokenize the list and try to load the library from each directory.
+         */
+        tokenized_library_path = strdup(ld_library_path);
+        tokens_count           = cli_strtokenize(tokenized_library_path, ':', MAX_LIBRARY_PATHS, tokens);
+
+        for (token_index = 0; token_index < tokens_count; token_index++) {
+            cli_dbgmsg("searching for %s, LD_LIBRARY_PATH: %s\n", featurename, tokens[token_index]);
+
+            for (i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++) {
+                snprintf(modulename, sizeof(modulename), "%s" PATHSEP "%s%s", tokens[token_index], name, suffixes[i]);
+
+                rhandle = dlopen(modulename, RTLD_NOW);
+                if (NULL != rhandle) {
+                    cli_dbgmsg("%s support loaded from %s\n", featurename, modulename);
+                    goto done;
+                }
+
+                cli_dbgmsg("searching for %s: %s not found\n", featurename, modulename);
+            }
+        }
+    }
+
+    /*
+     * Search in "<prefix>/lib" checking with each of the different possible suffixes.
+     */
+    cli_dbgmsg("searching for %s, user-searchpath: %s\n", featurename, SEARCH_LIBDIR);
+
+    for (i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++) {
+        snprintf(modulename, sizeof(modulename), "%s" PATHSEP "%s%s", SEARCH_LIBDIR, name, suffixes[i]);
+
+        rhandle = dlopen(modulename, RTLD_NOW);
+        if (NULL != rhandle) {
+            cli_dbgmsg("%s support loaded from %s\n", featurename, modulename);
+            goto done;
+        }
+
+        cli_dbgmsg("searching for %s: %s not found\n", featurename, modulename);
+    }
+
+    err = dlerror();
+    if (NULL == err) {
+        cli_dbgmsg("Cannot dlopen %s: Unknown error - %s support unavailable\n", name, featurename);
+    } else {
+        cli_dbgmsg("Cannot dlopen %s: %s - %s support unavailable\n", name, err, featurename);
+    }
+
+done:
+
+    free(tokenized_library_path);
+
+    return (void *)rhandle;
+}
+
+#endif
 
 #ifdef _WIN32
 
@@ -250,7 +245,7 @@ static void *get_module_function(HMODULE handle, const char *name)
                 NULL,
                 lasterr,
                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                (LPCSTR)&err,
+                (LPSTR)&err,
                 0,
                 NULL);
         }
@@ -269,7 +264,7 @@ static void *get_module_function(HMODULE handle, const char *name)
 static void *get_module_function(void *handle, const char *name)
 {
     void *procAddress = NULL;
-    procAddress = dlsym(handle, name);
+    procAddress       = dlsym(handle, name);
     if (NULL == procAddress) {
         const char *err = dlerror();
         if (NULL == err) {
@@ -442,9 +437,9 @@ cl_error_t cl_init(unsigned int initoptions)
     rc = bytecode_init();
     if (rc)
         return rc;
-#ifdef HAVE_LIBXML2
+
     xmlInitParser();
-#endif
+
     return CL_SUCCESS;
 }
 
@@ -453,7 +448,7 @@ struct cl_engine *cl_engine_new(void)
     struct cl_engine *new;
     cli_intel_t *intel;
 
-    new = (struct cl_engine *)cli_calloc(1, sizeof(struct cl_engine));
+    new = (struct cl_engine *)calloc(1, sizeof(struct cl_engine));
     if (!new) {
         cli_errmsg("cl_engine_new: Can't allocate memory for cl_engine\n");
         return NULL;
@@ -539,7 +534,7 @@ struct cl_engine *cl_engine_new(void)
     }
 
     /* Set up default stats/intel gathering callbacks */
-    intel = cli_calloc(1, sizeof(cli_intel_t));
+    intel = calloc(1, sizeof(cli_intel_t));
     if ((intel)) {
 #ifdef CL_THREAD_SAFE
         if (pthread_mutex_init(&(intel->mutex), NULL)) {
@@ -581,9 +576,6 @@ struct cl_engine *cl_engine_new(void)
     new->maxrechwp3 = CLI_DEFAULT_MAXRECHWP3;
 
     /* PCRE matching limitations */
-#if HAVE_PCRE
-    cli_pcre_init();
-#endif
     new->pcre_match_limit    = CLI_DEFAULT_PCRE_MATCH_LIMIT;
     new->pcre_recmatch_limit = CLI_DEFAULT_PCRE_RECMATCH_LIMIT;
     new->pcre_max_filesize   = CLI_DEFAULT_PCRE_MAX_FILESIZE;
@@ -1123,19 +1115,17 @@ void cli_append_potentially_unwanted_if_heur_exceedsmax(cli_ctx *ctx, char *vnam
             cli_dbgmsg("%s: scanning may be incomplete and additional analysis needed for this file.\n", vname);
         }
 
-#if HAVE_JSON
         /* Also record the event in the scan metadata, under "ParseErrors" */
         if (SCAN_COLLECT_METADATA && ctx->wrkproperty) {
             cli_json_parse_error(ctx->wrkproperty, vname);
         }
-#endif
     }
 }
 
-cl_error_t cli_checklimits(const char *who, cli_ctx *ctx, unsigned long need1, unsigned long need2, unsigned long need3)
+cl_error_t cli_checklimits(const char *who, cli_ctx *ctx, uint64_t need1, uint64_t need2, uint64_t need3)
 {
     cl_error_t ret = CL_SUCCESS;
-    unsigned long needed;
+    uint64_t needed;
 
     if (!ctx) {
         /* if called without limits, go on, unpack, scan */
@@ -1156,7 +1146,7 @@ cl_error_t cli_checklimits(const char *who, cli_ctx *ctx, unsigned long need1, u
     /* Enforce global scan-size limit, if limit enabled */
     if (needed && (ctx->engine->maxscansize != 0) && (ctx->engine->maxscansize - ctx->scansize < needed)) {
         /* The size needed is greater than the remaining scansize ... Skip this file. */
-        cli_dbgmsg("%s: scansize exceeded (initial: %lu, consumed: %lu, needed: %lu)\n", who, (unsigned long int)ctx->engine->maxscansize, (unsigned long int)ctx->scansize, needed);
+        cli_dbgmsg("%s: scansize exceeded (initial: %lu, consumed: %lu, needed: %lu)\n", who, ctx->engine->maxscansize, ctx->scansize, needed);
         ret = CL_EMAXSIZE;
         cli_append_potentially_unwanted_if_heur_exceedsmax(ctx, "Heuristics.Limits.Exceeded.MaxScanSize");
         goto done;
@@ -1165,7 +1155,7 @@ cl_error_t cli_checklimits(const char *who, cli_ctx *ctx, unsigned long need1, u
     /* Enforce per-file file-size limit, if limit enabled */
     if (needed && (ctx->engine->maxfilesize != 0) && (ctx->engine->maxfilesize < needed)) {
         /* The size needed is greater than that limit ... Skip this file. */
-        cli_dbgmsg("%s: filesize exceeded (allowed: %lu, needed: %lu)\n", who, (unsigned long int)ctx->engine->maxfilesize, needed);
+        cli_dbgmsg("%s: filesize exceeded (allowed: %lu, needed: %lu)\n", who, ctx->engine->maxfilesize, needed);
         ret = CL_EMAXSIZE;
         cli_append_potentially_unwanted_if_heur_exceedsmax(ctx, "Heuristics.Limits.Exceeded.MaxFileSize");
         goto done;
@@ -1279,7 +1269,7 @@ char *cli_hashstream(FILE *fs, unsigned char *digcpy, int type)
 
     cl_finish_hash(ctx, digest);
 
-    if (!(hashstr = (char *)cli_calloc(size * 2 + 1, sizeof(char))))
+    if (!(hashstr = (char *)calloc(size * 2 + 1, sizeof(char))))
         return NULL;
 
     pt = hashstr;
@@ -1396,7 +1386,6 @@ static cl_error_t append_virus(cli_ctx *ctx, const char *virname, IndicatorType 
         cli_virus_found_cb(ctx, virname);
     }
 
-#if HAVE_JSON
     if (SCAN_COLLECT_METADATA && ctx->wrkproperty) {
         json_object *arrobj, *virobj;
         if (!json_object_object_get_ex(ctx->wrkproperty, "Viruses", &arrobj)) {
@@ -1416,7 +1405,6 @@ static cl_error_t append_virus(cli_ctx *ctx, const char *virname, IndicatorType 
         }
         json_object_array_add(arrobj, virobj);
     }
-#endif
 
     if (SCAN_ALLMATCHES) {
         // Never break.
@@ -1665,7 +1653,7 @@ size_t cli_recursion_stack_get_size(cli_ctx *ctx, int index)
 /*
  * Windows doesn't allow you to delete a directory while it is still open
  */
-int cli_rmdirs(const char *name)
+int cli_rmdirs(const char *dirname)
 {
     int rc;
     STATBUF statb;
@@ -1673,17 +1661,17 @@ int cli_rmdirs(const char *name)
     struct dirent *dent;
     char err[128];
 
-    if (CLAMSTAT(name, &statb) < 0) {
-        cli_warnmsg("cli_rmdirs: Can't locate %s: %s\n", name, cli_strerror(errno, err, sizeof(err)));
+    if (CLAMSTAT(dirname, &statb) < 0) {
+        cli_warnmsg("cli_rmdirs: Can't locate %s: %s\n", dirname, cli_strerror(errno, err, sizeof(err)));
         return -1;
     }
 
     if (!S_ISDIR(statb.st_mode)) {
-        if (cli_unlink(name)) return -1;
+        if (cli_unlink(dirname)) return -1;
         return 0;
     }
 
-    if ((dd = opendir(name)) == NULL)
+    if ((dd = opendir(dirname)) == NULL)
         return -1;
 
     rc = 0;
@@ -1696,15 +1684,14 @@ int cli_rmdirs(const char *name)
         if (strcmp(dent->d_name, "..") == 0)
             continue;
 
-        path = cli_malloc(strlen(name) + strlen(dent->d_name) + 2);
-
+        path = malloc(strlen(dirname) + strlen(dent->d_name) + 2);
         if (path == NULL) {
-            cli_errmsg("cli_rmdirs: Unable to allocate memory for path %u\n", strlen(name) + strlen(dent->d_name) + 2);
+            cli_errmsg("cli_rmdirs: Unable to allocate memory for path %u\n", strlen(dirname) + strlen(dent->d_name) + 2);
             closedir(dd);
             return -1;
         }
 
-        sprintf(path, "%s\\%s", name, dent->d_name);
+        sprintf(path, "%s\\%s", dirname, dent->d_name);
         rc = cli_rmdirs(path);
         free(path);
         if (rc != 0)
@@ -1713,8 +1700,8 @@ int cli_rmdirs(const char *name)
 
     closedir(dd);
 
-    if (rmdir(name) < 0) {
-        cli_errmsg("cli_rmdirs: Can't remove temporary directory %s: %s\n", name, cli_strerror(errno, err, sizeof(err)));
+    if (rmdir(dirname) < 0) {
+        cli_errmsg("cli_rmdirs: Can't remove temporary directory %s: %s\n", dirname, cli_strerror(errno, err, sizeof(err)));
         return -1;
     }
 
@@ -1742,7 +1729,7 @@ int cli_rmdirs(const char *dirname)
             while ((dent = readdir(dd))) {
                 if (dent->d_ino) {
                     if (strcmp(dent->d_name, ".") && strcmp(dent->d_name, "..")) {
-                        path = cli_malloc(strlen(dirname) + strlen(dent->d_name) + 2);
+                        path = malloc(strlen(dirname) + strlen(dent->d_name) + 2);
                         if (!path) {
                             cli_errmsg("cli_rmdirs: Unable to allocate memory for path %llu\n", (long long unsigned)(strlen(dirname) + strlen(dent->d_name) + 2));
                             closedir(dd);
@@ -1814,13 +1801,13 @@ bitset_t *cli_bitset_init(void)
 {
     bitset_t *bs;
 
-    bs = cli_malloc(sizeof(bitset_t));
+    bs = malloc(sizeof(bitset_t));
     if (!bs) {
         cli_errmsg("cli_bitset_init: Unable to allocate memory for bs %llu\n", (long long unsigned)sizeof(bitset_t));
         return NULL;
     }
     bs->length = BITSET_DEFAULT_SIZE;
-    bs->bitset = cli_calloc(BITSET_DEFAULT_SIZE, 1);
+    bs->bitset = calloc(BITSET_DEFAULT_SIZE, 1);
     if (!bs->bitset) {
         cli_errmsg("cli_bitset_init: Unable to allocate memory for bs->bitset %u\n", BITSET_DEFAULT_SIZE);
         free(bs);
@@ -1846,7 +1833,7 @@ static bitset_t *bitset_realloc(bitset_t *bs, unsigned long min_size)
     unsigned char *new_bitset;
 
     new_length = nearest_power(min_size);
-    new_bitset = (unsigned char *)cli_realloc(bs->bitset, new_length);
+    new_bitset = (unsigned char *)cli_max_realloc(bs->bitset, new_length);
     if (!new_bitset) {
         return NULL;
     }

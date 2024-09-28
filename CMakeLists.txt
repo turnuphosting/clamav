@@ -1,5 +1,5 @@
 
-# Copyright (C) 2019-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+# Copyright (C) 2019-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
 
 if(WIN32)
     cmake_minimum_required( VERSION 3.16 ) # For file(GET_RUNTIME_DEPENDENCIES)
@@ -22,7 +22,7 @@ string(TIMESTAMP TODAY "%Y%m%d")
 set(VERSION_SUFFIX "-devel-${TODAY}")
 
 project( ClamAV
-         VERSION "1.3.0"
+         VERSION "1.5.0"
          DESCRIPTION "ClamAV open source email, web, and end-point anti-virus toolkit." )
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -37,7 +37,7 @@ HexVersion(PACKAGE_VERSION_NUM ${PROJECT_VERSION_MAJOR} ${PROJECT_VERSION_MINOR}
 
 # libtool library versioning rules: http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 set(LIBCLAMAV_CURRENT  12)
-set(LIBCLAMAV_REVISION 1)
+set(LIBCLAMAV_REVISION 3)
 set(LIBCLAMAV_AGE      0)
 
 math(EXPR LIBCLAMAV_SOVERSION "${LIBCLAMAV_CURRENT} - ${LIBCLAMAV_AGE}")
@@ -45,7 +45,7 @@ set(LIBCLAMAV_VERSION "${LIBCLAMAV_SOVERSION}.${LIBCLAMAV_AGE}.${LIBCLAMAV_REVIS
 HexVersion(LIBCLAMAV_VERSION_NUM ${LIBCLAMAV_CURRENT} ${LIBCLAMAV_REVISION} ${LIBCLAMAV_AGE})
 
 set(LIBFRESHCLAM_CURRENT  3)
-set(LIBFRESHCLAM_REVISION 1)
+set(LIBFRESHCLAM_REVISION 2)
 set(LIBFRESHCLAM_AGE      0)
 
 math(EXPR LIBFRESHCLAM_SOVERSION "${LIBFRESHCLAM_CURRENT} - ${LIBFRESHCLAM_AGE}")
@@ -76,7 +76,7 @@ if(Git_FOUND)
     endif()
 endif()
 
-# Enable use of pkg-config to find depenencies.
+# Enable use of pkg-config to find dependencies.
 find_package(PkgConfig QUIET)
 
 #
@@ -271,7 +271,7 @@ if(ENABLE_TESTS)
                 # No unittest either!
                 # Some weird Python installations do exist that lack standard modules like unittest.
                 # Let's make sure these folks know the Python 3 install we found won't cut it.
-                message("Python 3 found: ${Python3_EXECUTABLE}, but it is missing the unittest module (wierd!).")
+                message("Python 3 found: ${Python3_EXECUTABLE}, but it is missing the unittest module (weird!).")
                 message(FATAL_ERROR "The tests won't work with this Python installation. You can disable the tests by reconfiguring with: -D ENABLE_TESTS=OFF")
             endif()
         endif()
@@ -456,20 +456,10 @@ include(CPack)
 
 # libclamav efficacy dependencies
 find_package(OpenSSL REQUIRED)
-if(OPENSSL_FOUND)
-    set(HAVE_LIBSSL 1)
-endif()
 
 find_package(ZLIB REQUIRED)
-if(ZLIB_FOUND)
-    set(HAVE_ZLIB_H 1)
-    set(HAVE_LIBZ 1)
-endif()
 
 find_package(BZip2 REQUIRED)
-if(BZIP2_FOUND)
-    set(HAVE_BZLIB_H 1)
-endif()
 
 # Disable CMAKE_FIND_PACKAGE_PREFER_CONFIG, temporarily, because
 # we don't presently support the using libxml2's Config.cmake
@@ -477,17 +467,11 @@ set(PACKAGE_PREFER_CONFIG_BAK ${CMAKE_FIND_PACKAGE_PREFER_CONFIG})
 set(CMAKE_FIND_PACKAGE_PREFER_CONFIG FALSE)
 
 find_package(LibXml2 REQUIRED)
-if(LibXml2_FOUND)
-    set(HAVE_LIBXML2 1)
-endif()
+
 # Restore the requested CMAKE_FIND_PACKAGE_PREFER_CONFIG setting
 set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ${PACKAGE_PREFER_CONFIG_BAK})
 
 find_package(PCRE2 REQUIRED)
-if(PCRE2_FOUND)
-    set(HAVE_PCRE 1)
-    set(USING_PCRE2 1)
-endif()
 
 # libclamav feature dependencies
 if(NOT WIN32)
@@ -502,8 +486,6 @@ else()
     set(JSONC_USE_STATIC ON)
 endif()
 find_package(JSONC REQUIRED)
-# Set variable required by libclamav to use libjson-c
-set(HAVE_JSON 1)
 
 set(LLVM_MAX_VER "13")
 set(LLVM_MIN_VER "8")
@@ -548,20 +530,20 @@ if(${bytecodeRuntime} STREQUAL "llvm")
     endif()
 endif()
 
+if(APPLE)
+    find_library(APPLE_CORE_FOUNDATION CoreFoundation)
+    if (NOT APPLE_CORE_FOUNDATION)
+        message(FATAL_ERROR "Apple CoreFoundation framework not found")
+    endif()
+    find_library(APPLE_SECURITY Security)
+    if (NOT APPLE_SECURITY)
+        message(FATAL_ERROR "Apple Security framework not found")
+    endif()
+endif()
+
 # libfreshclam & application dependencies
 if(NOT ENABLE_LIBCLAMAV_ONLY)
     find_package(CURL REQUIRED)
-
-    if(APPLE)
-        find_library(APPLE_CORE_FOUNDATION CoreFoundation)
-        if (NOT APPLE_CORE_FOUNDATION)
-            message(FATAL_ERROR "Apple CoreFoundation framework not found")
-        endif()
-        find_library(APPLE_SECURITY Security)
-        if (NOT APPLE_SECURITY)
-            message(FATAL_ERROR "Apple Security framework not found")
-        endif()
-    endif()
 
     if(ENABLE_APP)
         find_package(CURSES REQUIRED)

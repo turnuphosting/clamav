@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *  Copyright (C) 2013-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  *  Copyright (C) 2007-2013 Sourcefire, Inc.
  *
  *  Authors: Tomasz Kojm
@@ -139,7 +139,7 @@ static unsigned char *cli_decodesig(const char *sig, unsigned int plen, BIGNUM *
                    bn_bytes, plen);
         goto done;
     }
-    plain = cli_calloc(plen, sizeof(unsigned char));
+    plain = calloc(plen, sizeof(unsigned char));
     if (!plain) {
         cli_errmsg("cli_decodesig: Can't allocate memory for 'plain'\n");
         goto done;

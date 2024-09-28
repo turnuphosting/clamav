@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *  Copyright (C) 2013-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  *  Copyright (C) 2007-2013 Sourcefire, Inc.
  *
  *  Authors: Tomasz Kojm
@@ -168,6 +168,7 @@ struct cl_scan_options {
 #define CL_SCAN_GENERAL_HEURISTICS                  0x4  /* option to enable heuristic alerts */
 #define CL_SCAN_GENERAL_HEURISTIC_PRECEDENCE        0x8  /* allow heuristic match to take precedence. */
 #define CL_SCAN_GENERAL_UNPRIVILEGED                0x10 /* scanner will not have read access to files. */
+#define CL_SCAN_GENERAL_STORE_HTML_URLS             0x20 /* Store urls found in html <a and <form tags when recording JSON metadata */
 
 /* parsing capabilities options */
 #define CL_SCAN_PARSE_ARCHIVE                       0x1
@@ -180,6 +181,9 @@ struct cl_scan_options {
 #define CL_SCAN_PARSE_OLE2                          0x80
 #define CL_SCAN_PARSE_HTML                          0x100
 #define CL_SCAN_PARSE_PE                            0x200
+#define CL_SCAN_PARSE_ONENOTE                       0x400
+#define CL_SCAN_PARSE_IMAGE                         0x800  /* option to enable/disable parsing images (graphics) */
+#define CL_SCAN_PARSE_IMAGE_FUZZY_HASH              0x1000 /* option to enable/disable image fuzzy hash calculation. */
 
 /* heuristic alerting options */
 #define CL_SCAN_HEURISTIC_BROKEN                    0x2    /* alert on broken PE and broken ELF files */
@@ -263,7 +267,7 @@ void cl_cleanup_crypto(void);
  * @brief Initialize the ClamAV library.
  *
  * @param initoptions   Unused.
- * @return cl_error_t   CL_SUCCESS if everything initalized correctly.
+ * @return cl_error_t   CL_SUCCESS if everything initialized correctly.
  */
 extern cl_error_t cl_init(unsigned int initoptions);
 
@@ -540,7 +544,7 @@ extern void cl_engine_set_clcb_file_inspection(struct cl_engine *engine, clcb_fi
  * @brief Pre-scan callback.
  *
  * Called for each NEW file (inner and outer) before the scanning takes place. This is
- * roughly the the same as clcb_before_cache, but it is affected by clean file caching.
+ * roughly the same as clcb_before_cache, but it is affected by clean file caching.
  * This means that it won't be called if a clean cached file (inner or outer) is
  * scanned a second time.
  *
@@ -1019,7 +1023,7 @@ extern void cl_engine_stats_enable(struct cl_engine *engine);
  * @param[out] scanned      The number of bytes scanned.
  * @param engine            The scanning engine.
  * @param scanoptions       Scanning options.
- * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occured during the scan.
+ * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occurred during the scan.
  */
 extern cl_error_t cl_scandesc(int desc, const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions);
 
@@ -1035,7 +1039,7 @@ extern cl_error_t cl_scandesc(int desc, const char *filename, const char **virna
  * @param engine            The scanning engine.
  * @param scanoptions       Scanning options.
  * @param[in,out] context   An opaque context structure allowing the caller to record details about the sample being scanned.
- * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occured during the scan.
+ * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occurred during the scan.
  */
 extern cl_error_t cl_scandesc_callback(int desc, const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions, void *context);
 
@@ -1047,7 +1051,7 @@ extern cl_error_t cl_scandesc_callback(int desc, const char *filename, const cha
  * @param[out] scanned      The number of bytes scanned.
  * @param engine            The scanning engine.
  * @param scanoptions       Scanning options.
- * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occured during the scan.
+ * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occurred during the scan.
  */
 extern cl_error_t cl_scanfile(const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions);
 
@@ -1062,7 +1066,7 @@ extern cl_error_t cl_scanfile(const char *filename, const char **virname, unsign
  * @param engine            The scanning engine.
  * @param scanoptions       Scanning options.
  * @param[in,out] context   An opaque context structure allowing the caller to record details about the sample being scanned.
- * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occured during the scan.
+ * @return cl_error_t       CL_CLEAN, CL_VIRUS, or an error code if an error occurred during the scan.
  */
 extern cl_error_t cl_scanfile_callback(const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions, void *context);
 
@@ -1194,7 +1198,7 @@ extern cl_error_t cl_statinidir(const char *dirname, struct cl_stat *dbstat);
  *
  * @param dbstat dbstat handle.
  * @return int   0 No change.
- * @return int   1 Some change occured.
+ * @return int   1 Some change occurred.
  */
 extern int cl_statchkdir(const struct cl_stat *dbstat);
 
@@ -1265,7 +1269,7 @@ typedef struct cl_fmap cl_fmap_t;
  * @param buf       A buffer to read data into, must be at least offset + count
  *                  bytes in size.
  * @param count     The number of bytes to read.
- * @param offset    The the offset into buf to read the data to. If successful,
+ * @param offset    The offset into buf to read the data to. If successful,
  *                  the number of bytes actually read is returned. Upon reading
  *                  end-of-file, zero is returned. Otherwise, a -1 is returned
  *                  and the global variable errno is set to indicate the error.
@@ -1331,7 +1335,7 @@ extern void cl_fmap_close(cl_fmap_t *);
  *                      libclamav. May be used within your callback functions.
  * @return cl_error_t   CL_CLEAN if no signature matched. CL_VIRUS if a
  *                      signature matched. Another CL_E* error code if an
- *                      error occured.
+ *                      error occurred.
  */
 extern cl_error_t cl_scanmap_callback(cl_fmap_t *map, const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions, void *context);
 

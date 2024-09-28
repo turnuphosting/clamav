@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+# Copyright (C) 2020-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
 
 if(WIN32)
     add_definitions(-DWIN32_LEAN_AND_MEAN)
@@ -67,7 +67,8 @@ if(ENABLE_SHARED_LIB)
     endif()
     set_target_properties(freshclam PROPERTIES
         COMPILE_FLAGS "${WARNCFLAGS}"
-        VERSION ${LIBFRESHCLAM_VERSION} SOVERSION ${LIBFRESHCLAM_SOVERSION})
+        VERSION ${LIBFRESHCLAM_VERSION} SOVERSION ${LIBFRESHCLAM_SOVERSION}
+        LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/libfreshclam.map)
     if(WIN32)
         install(TARGETS freshclam DESTINATION . COMPONENT libraries)
         install(FILES $<TARGET_PDB_FILE:freshclam> DESTINATION . OPTIONAL COMPONENT libraries)

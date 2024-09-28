@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013-2023 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ *  Copyright (C) 2013-2024 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
  *  Copyright (C) 2007-2013 Sourcefire, Inc.
  *
  *  Authors: Tomasz Kojm
@@ -88,7 +88,7 @@ static int cli_untgz(int fd, const char *destdir)
         return -1;
     }
 
-    path = (char *)cli_calloc(sizeof(char), pathlen);
+    path = (char *)calloc(sizeof(char), pathlen);
     if (!path) {
         cli_errmsg("cli_untgz: Can't allocate memory for path\n");
         cli_untgz_cleanup(NULL, infile, NULL, fdd);
@@ -259,7 +259,7 @@ static int cli_tgzload(int fd, struct cl_engine *engine, unsigned int *signo, un
     }
 
     dbio->bufsize = CLI_DEFAULT_DBIO_BUFSIZE;
-    dbio->buf     = cli_malloc(dbio->bufsize);
+    dbio->buf     = malloc(dbio->bufsize);
     if (!dbio->buf) {
         cli_errmsg("cli_tgzload: Can't allocate memory for dbio->buf\n");
         cli_tgzload_cleanup(compr, dbio, fdd);
@@ -407,7 +407,7 @@ struct cl_cvd *cl_cvdparse(const char *head)
         return NULL;
     }
 
-    if (!(cvd = (struct cl_cvd *)cli_malloc(sizeof(struct cl_cvd)))) {
+    if (!(cvd = (struct cl_cvd *)malloc(sizeof(struct cl_cvd)))) {
         cli_errmsg("cl_cvdparse: Can't allocate memory for cvd\n");
         return NULL;
     }
@@ -633,7 +633,7 @@ cl_error_t cli_cvdload(FILE *fs, struct cl_engine *engine, unsigned int *signo, 
 
     if (dbtype <= 1) {
         /* check for duplicate db */
-        dupname = cli_strdup(filename);
+        dupname = cli_safer_strdup(filename);
         if (!dupname)
             return CL_EMEM;
         dupname[strlen(dupname) - 2] = (dbtype == 1 ? 'v' : 'l');
@@ -851,7 +851,7 @@ cl_error_t cl_cvdgetage(const char *path, time_t *age_seconds)
         if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
             continue;
 
-        if (!CLI_DBEXT(dent->d_name))
+        if (!CLI_DBEXT_SIGNATURE(dent->d_name))
             continue;
 
         if (ends_with_sep)
